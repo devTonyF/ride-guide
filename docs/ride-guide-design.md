@@ -49,36 +49,38 @@
 
 ## 3. Solution Structure
 
-Clean Architecture — four projects in one solution:
+Clean Architecture — five projects in one solution:
 
 ```
 RideGuide/
-├── RideGuide.Api/           # ASP.NET Core project — entry point
-│   ├── Controllers/         # AuthController, RoutesController, etc.
-│   ├── Middleware/          # Global exception handler
-│   ├── DTOs/                # Request/response models
-│   ├── Validators/          # FluentValidation validators
-│   └── Program.cs           # Startup, DI registration
+├── RideGuide.Api/              # ASP.NET Core project — entry point
+│   ├── Controllers/            # AuthController, RoutesController, etc.
+│   ├── Middleware/             # Global exception handler
+│   ├── DTOs/                   # Request/response models
+│   ├── Validators/             # FluentValidation validators
+│   └── Program.cs              # Startup, DI registration
 │
-├── RideGuide.Core/          # Class library — domain layer
-│   ├── Entities/            # User, Route, Region, Rating
-│   ├── Enums/               # RoadCharacter, Pace
-│   └── Interfaces/          # IRouteRepository, IRatingRepository, etc.
+├── RideGuide.Domain/           # Class library — domain layer
+│   ├── Entities/               # User, Route, Region, Rating
+│   ├── Enums/                  # RoadCharacter, Pace
+│   └── Interfaces/             # IRouteRepository, IRatingRepository, etc.
 │
-├── RideGuide.Infrastructure/ # Class library — data layer
-│   ├── Data/                # AppDbContext, Global Query Filters
-│   ├── Repositories/        # Repository implementations
-│   └── Migrations/          # EF Core migrations
+├── RideGuide.Infrastructure/   # Class library — data layer
+│   ├── Data/                   # AppDbContext, Global Query Filters
+│   ├── Repositories/           # Repository implementations
+│   └── Migrations/             # EF Core migrations
 │
-└── RideGuide.Tests/         # xUnit test project
-    ├── Unit/                # Unit tests (Moq)
-    └── Integration/         # WebApplicationFactory integration tests
+├── RideGuide.Tests/            # xUnit — unit and integration tests
+│   ├── Unit/                   # Unit tests (Moq)
+│   └── Integration/            # WebApplicationFactory integration tests
+│
+└── RideGuide.Tests.Playwright/ # Playwright — API tests
 ```
 
 **Why Clean Architecture:**
 - Transition plan (Month 5–6) calls it out explicitly
 - Enforces separation of concerns — domain logic has no dependency on EF Core or ASP.NET Core
-- Repository interfaces live in `Core`; implementations live in `Infrastructure` — testable by design
+- Repository interfaces live in `Domain`; implementations live in `Infrastructure` — testable by design
 
 ---
 
