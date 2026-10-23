@@ -31,18 +31,20 @@
 
 | Concern | Choice | Notes |
 |---|---|---|
-| Framework | ASP.NET Core 8 (LTS) | Matches transition plan target |
-| Language | C# 12 | |
-| ORM | EF Core 8 | Code First, migrations |
+| Framework | ASP.NET Core 9 | Matches scaffolded target framework (net9.0) |
+| Language | C# 13 | |
+| ORM | EF Core 9 | Code First, migrations |
 | Database | PostgreSQL | Free everywhere; easy to host for live demo; EF Core abstracts differences |
 | Authentication | ASP.NET Core Identity + JWT | Industry standard; handles password hashing, lockout, claims out of the box |
 | Validation | FluentValidation | `FluentValidation.AspNetCore` NuGet |
+| Object Mapping | AutoMapper | `AutoMapper` + `AutoMapper.Extensions.Microsoft.DependencyInjection` NuGet; maps entities → DTOs in controller layer |
 | Logging | Serilog | `Serilog.AspNetCore` NuGet; `ILogger<T>` used throughout |
 | Error Handling | ProblemDetails + Global Exception Middleware | RFC 7807; built into ASP.NET Core 7+ |
 | API Documentation | Swagger / OpenAPI | Auto-generated; serves as the UI |
 | Testing | xUnit + Moq + `WebApplicationFactory` | Unit + integration tests |
 | API Testing | Playwright (`APIRequestContext`) | Committed and passing in CI |
 | CI | GitHub Actions | Personal repo; no ADO dependency |
+| Local Dev | Docker + docker-compose | PostgreSQL container via `docker-compose.yml`; no local PostgreSQL install required |
 | IDE | Visual Studio 2022 | |
 
 ---
@@ -53,8 +55,11 @@ Clean Architecture — five projects in one solution:
 
 ```
 RideGuide/
+├── docker-compose.yml          # PostgreSQL container for local development
+│
 ├── RideGuide.Api/              # ASP.NET Core project — entry point
 │   ├── Controllers/            # AuthController, RoutesController, etc.
+│   ├── Mappings/               # AutoMapper profiles (entity → DTO)
 │   ├── Middleware/             # Global exception handler
 │   ├── DTOs/                   # Request/response models
 │   ├── Validators/             # FluentValidation validators
@@ -277,6 +282,8 @@ Region  ──< Route >── Ratings ──> User
 | 13 | Structured logging | Serilog via `ILogger<T>` — structured JSON events, rich sink ecosystem, set up from day one |
 | 14 | Database | PostgreSQL — free everywhere, no licensing concerns, easy to host for live demo |
 | 15 | Authentication library | ASP.NET Core Identity + JWT — industry standard; handles security primitives correctly out of the box |
+| 16 | Object mapping | AutoMapper via profile classes — explicitly called out in Month 3–4 of transition plan alongside DTOs; keeps controller code clean |
+| 17 | Local dev database | Docker + docker-compose for PostgreSQL — eliminates local PostgreSQL install requirement; developers run `docker compose up` and get a clean DB immediately |
 
 ---
 
@@ -291,8 +298,20 @@ Separate validator classes with a fluent API. Keeps DTOs clean, validators are i
 ### Structured Logging — Serilog ✓
 Logs events as structured data (JSON), not plain text strings. Plugs into ASP.NET Core's `ILogger<T>` abstraction as a provider — code throughout the app uses `ILogger<T>` and never calls Serilog directly. Rich sink ecosystem (console, files, Seq, Azure Application Insights). Set up from day one so logs are useful throughout the build. Explicitly called out in Month 9–10 of the transition plan. NuGet: `Serilog.AspNetCore`.
 
+### Object Mapping — AutoMapper ✓
+AutoMapper profile classes live in `RideGuide.Api/Mappings/`. Profiles map domain entities to response DTOs and request DTOs to entities. Registered via `AddAutoMapper(Assembly)` in `Program.cs`. Explicitly called out in Month 3–4 of the transition plan alongside DTOs.
+
 ### EF Core Global Query Filters
 Mechanism for enforcing soft delete transparently — every query automatically excludes `IsDeleted = true` records without manual filtering in every repository method.
+
+### N+1 Queries & EF Core Optimization
+Consciously addressed during repository implementation — e.g., `GET /api/routes` must eager-load related data (Region) rather than issuing per-row queries. `GET /api/routes/{id}` computes average rating via a single aggregation query, not a load-all-then-average pattern. Part of Month 9–10 EF Core proficiency: identifying and resolving N+1 patterns.
+
+### Docker & Local Development
+`docker-compose.yml` at the repo root defines a PostgreSQL service. Developers run `docker compose up -d` to get a running database with no local install. Connection string in `appsettings.Development.json` targets `localhost:5432`. CI uses the same image in the GitHub Actions workflow.
+
+### Execution Plans (EXPLAIN ANALYZE)
+Part of the final proficiency checklist: "writes migrations; authors non-trivial queries; **reads execution plans**." During Month 9–10 work, run `EXPLAIN ANALYZE` in psql or pgAdmin against the paginated routes query and the ratings aggregation query. Document observations (index usage, seq scan vs index scan, estimated vs actual rows). Results go in `docs/query-analysis.md`.
 
 ---
 
@@ -303,6 +322,69 @@ Mechanism for enforcing soft delete transparently — every query automatically 
 - Angular frontend
 - Azure Blob Storage for images
 - Deployment to Azure free tier
+- `Dockerfile` for the API (docker-compose covers the local dev requirement; a Dockerfile demonstrates containerizing the application itself)
+
+---
+
+---
+
+## 8. Requirement Coverage
+
+Explicit mapping of every Track B requirement and proficiency check to a design decision. Use this as a completion checklist.
+
+### Hard Capstone Requirements
+
+| Requirement | How Covered |
+|---|---|
+| ASP.NET Core REST API with validation | FluentValidation validators; ProblemDetails error handling |
+| Structured logging | Serilog via `ILogger<T>` throughout |
+| EF Core data layer with at least one migration | Code First; Migrations/ in Infrastructure |
+| JWT-protected endpoints | ASP.NET Core Identity + `[Authorize]`; `AuthController` issues tokens |
+| xUnit unit tests with Moq | `RideGuide.Tests/Unit/` |
+| `WebApplicationFactory` integration tests | `RideGuide.Tests/Integration/` |
+| Playwright API tests committed and passing in CI | `RideGuide.Tests.Playwright/`; GitHub Actions workflow |
+| Clean PR reviewed and merged | PR opened on GitHub when feature-complete |
+
+### Track B Topic Coverage (Months 3–12)
+
+| Topic | Where |
+|---|---|
+| Middleware pipeline | Global exception middleware in `Middleware/` |
+| Controllers, routing, model binding, HTTP status codes | All controllers in `Controllers/` |
+| DataAnnotations / FluentValidation | FluentValidation validators in `Validators/` |
+| DTOs | Request/response models in `DTOs/` |
+| AutoMapper | Profile classes in `Mappings/`; registered in `Program.cs` |
+| Swagger / OpenAPI | Auto-generated via ASP.NET Core; serves as the API UI |
+| EF Core Code First — `DbContext`, `DbSet<T>`, migrations | `AppDbContext` in `Infrastructure/Data/`; `Migrations/` |
+| LINQ querying | Repository implementations; pagination and filtering queries |
+| Repository pattern | `IRouteRepository`, `IRatingRepository`, etc. in Domain; implementations in Infrastructure |
+| Clean Architecture layers | Five-project structure; Domain has zero framework dependencies |
+| DI across layers | Repositories and services registered in `Program.cs` |
+| JWT structure and claims | ASP.NET Core Identity; claims-based identity on protected endpoints |
+| `[Authorize]` and policy-based authorization | Applied to all write endpoints |
+| Moq unit tests | `RideGuide.Tests/Unit/` |
+| Playwright API tests vs integration tests | Both present; Playwright for CI smoke; `WebApplicationFactory` for full integration |
+| Server-side pagination + filtering | `GET /api/routes` — `?page`, `?pageSize`, `?regionId`, `?pace`, `?roadCharacter` |
+| Structured logging (Serilog) | `ILogger<T>` on all controllers and services |
+| N+1 query patterns / EF Core optimization | Eager-load Region on Route queries; aggregate rating in a single query |
+| Execution plans (`EXPLAIN ANALYZE`) | Run against paginated routes and rating aggregation queries during Month 9–10; document in `docs/query-analysis.md` |
+| Docker for local development | `docker-compose.yml` spins up PostgreSQL container |
+| Pipeline YAML | GitHub Actions workflow — build, test, Playwright |
+
+### Final Proficiency Checklist
+
+| Competency | Evidence |
+|---|---|
+| ASP.NET Core | Full REST API built independently |
+| EF Core & SQL | Migrations written; non-trivial queries authored; execution plans analyzed and documented |
+| Architecture | Five-project Clean Architecture; code placed correctly in each layer |
+| Authentication | JWT-protected endpoints implemented and explained |
+| Testing | Unit (Moq) + integration (`WebApplicationFactory`) + Playwright API tests — all committed |
+| Frontend literacy | Covered via coursework (Angular sections of transition plan) — not a capstone deliverable |
+| CI/CD & DevOps | GitHub Actions pipeline; Docker for local dev; understanding of YAML structure |
+| Claude Code | Used for pre-PR review on all PRs |
+| Dev process | Clean PR with meaningful description; code review completed |
+| Ownership | Entire capstone built independently |
 
 ---
 
